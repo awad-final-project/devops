@@ -1,0 +1,8 @@
+# SSL Certificate Placeholder
+
+Place your SSL certificate files here:
+- fullchain.pem
+- privkey.pem
+
+These files should NEVER be committed to git.
+See DEPLOYMENT.md for instructions on generating SSL certificates.

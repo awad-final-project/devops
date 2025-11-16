@@ -1,0 +1,79 @@
+services:
+  # ============================================
+  # Local MongoDB (optional - use profile to enable/disable)
+  # ============================================
+  # Run WITH local MongoDB:    docker compose --profile local-db up -d
+  # Run WITHOUT (use Atlas):   docker compose up -d
+  # ============================================
+  mongo:
+    image: mongo:6.0
+    container_name: mail-app-mongo
+    restart: unless-stopped
+    profiles: ["local-db"]  # Only starts when --profile local-db is used
+    volumes:
+      - mongo-data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: user_registration
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-change_me_in_production}
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+    ports:
+      - "27017:27017"  # Accessible for MongoDB Compass when using local DB
+
+  backend:
+    image: ghcr.io/awad-final-project/backend:latest
+    container_name: mail-app-backend
+    restart: unless-stopped
+    env_file:
+      - /opt/backend/.env
+    environment:
+      # MONGO_URI is read from /opt/backend/.env
+      # Local DB:  mongodb://admin:password@mongo:27017
+      # Atlas:     mongodb+srv://user:pass@cluster.mongodb.net/dbname
+      - PORT=3000
+      - NODE_ENV=production
+    depends_on:
+      mongo:
+        condition: service_healthy
+        required: false  # Backend can start without mongo service
+    networks:
+      - app-network
+
+  frontend:
+    image: ghcr.io/awad-final-project/frontend:latest
+    container_name: mail-app-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:alpine
+    container_name: mail-app-nginx
+    restart: unless-stopped
+    volumes:
+      - /opt/devops/config/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - /opt/devops/config/nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-network
+
+volumes:
+  mongo-data:
+
+networks:
+  app-network:
+    driver: bridge

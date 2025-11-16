@@ -1,0 +1,32 @@
+# Environment files
+.env
+*.env
+!.env.example
+!config/env/*.example
+
+# SSL Certificates
+config/nginx/ssl/*.pem
+config/nginx/ssl/*.key
+config/nginx/ssl/*.crt
+!config/nginx/ssl/.placeholder
+
+# Ansible
+ansible/*.retry
+ansible/.vault_pass
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.bak

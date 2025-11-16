@@ -1,0 +1,252 @@
+---
+- name: Deploy Mail Application
+  hosts: production
+  become: true
+  vars:
+    app_dir: "{{ app_dir | default('/opt') }}"
+    backend_dir: "{{ app_dir }}/backend"
+    frontend_dir: "{{ app_dir }}/frontend"
+    devops_dir: "{{ app_dir }}/devops"
+    # MongoDB Options:
+    # - true:  Use local MongoDB in Docker (requires --profile local-db)
+    # - false: Use external MongoDB Atlas (set MONGO_URI in .env)
+    use_local_mongodb: "{{ use_local_mongodb | default(true) }}"
+
+  tasks:
+    # Initial Setup
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      tags: [setup, always]
+
+    - name: Install required packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - git
+          - ufw
+          - certbot
+          - python3-pip
+        state: present
+      tags: setup
+
+    - name: Install Docker
+      shell: |
+        curl -fsSL https://get.docker.com -o get-docker.sh
+        sh get-docker.sh
+        rm get-docker.sh
+      args:
+        creates: /usr/bin/docker
+      tags: setup
+
+    - name: Install Docker Compose plugin
+      apt:
+        name: docker-compose-plugin
+        state: present
+      tags: setup
+
+    - name: Start and enable Docker service
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      tags: setup
+
+    # Firewall Configuration
+    - name: Configure UFW firewall
+      ufw:
+        rule: "{{ item.rule }}"
+        port: "{{ item.port }}"
+        proto: "{{ item.proto }}"
+      loop:
+        - { rule: 'allow', port: '22', proto: 'tcp' }
+        - { rule: 'allow', port: '80', proto: 'tcp' }
+        - { rule: 'allow', port: '443', proto: 'tcp' }
+      tags: setup
+
+    - name: Enable UFW
+      ufw:
+        state: enabled
+      tags: setup
+
+    # Clone Repositories
+    - name: Create application directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ backend_dir }}"
+        - "{{ frontend_dir }}"
+        - "{{ devops_dir }}"
+      tags: [setup, deploy]
+
+    - name: Clone backend repository
+      git:
+        repo: "{{ backend_repo }}"
+        dest: "{{ backend_dir }}"
+        version: main
+        force: yes
+      tags: [setup, deploy]
+
+    - name: Clone frontend repository
+      git:
+        repo: "{{ frontend_repo }}"
+        dest: "{{ frontend_dir }}"
+        version: main
+        force: yes
+      tags: [setup, deploy]
+
+    - name: Clone devops repository
+      git:
+        repo: "{{ devops_repo }}"
+        dest: "{{ devops_dir }}"
+        version: main
+        force: yes
+      tags: [setup, deploy]
+
+    # Environment Configuration
+    - name: Create backend .env file
+      template:
+        src: templates/backend.env.j2
+        dest: "{{ backend_dir }}/.env"
+        mode: '0600'
+      tags: [setup, config]
+
+    - name: Create devops .env file
+      template:
+        src: templates/docker-compose.env.j2
+        dest: "{{ devops_dir }}/.env"
+        mode: '0600'
+      tags: [setup, config]
+
+    # SSL Certificate Setup
+    - name: Check if SSL certificate exists
+      stat:
+        path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+      register: ssl_cert
+      tags: ssl
+
+    - name: Stop nginx container for SSL setup
+      shell: docker stop mail-app-nginx
+      ignore_errors: true
+      when: not ssl_cert.stat.exists
+      tags: ssl
+
+    - name: Obtain SSL certificate
+      shell: |
+        certbot certonly --standalone \
+          -d {{ domain_name }} \
+          --email {{ ssl_email }} \
+          --agree-tos \
+          --non-interactive
+      when: not ssl_cert.stat.exists
+      tags: ssl
+
+    - name: Create SSL directory in devops
+      file:
+        path: "{{ devops_dir }}/config/nginx/ssl"
+        state: directory
+        mode: '0755'
+      tags: ssl
+
+    - name: Copy SSL certificates
+      copy:
+        src: "/etc/letsencrypt/live/{{ domain_name }}/{{ item }}"
+        dest: "{{ devops_dir }}/config/nginx/ssl/{{ item }}"
+        remote_src: yes
+        mode: '0644'
+      loop:
+        - fullchain.pem
+        - privkey.pem
+      tags: ssl
+
+    - name: Create SSL renewal hook
+      copy:
+        dest: /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh
+        mode: '0755'
+        content: |
+          #!/bin/bash
+          cp /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem {{ devops_dir }}/config/nginx/ssl/
+          cp /etc/letsencrypt/live/{{ domain_name }}/privkey.pem {{ devops_dir }}/config/nginx/ssl/
+          chmod 644 {{ devops_dir }}/config/nginx/ssl/*.pem
+          docker restart mail-app-nginx
+      tags: ssl
+
+    - name: Add certbot renewal cron job
+      cron:
+        name: "Renew SSL certificates"
+        minute: "0"
+        hour: "2"
+        job: "certbot renew --quiet"
+      tags: ssl
+
+    # Deploy Application
+    - name: Pull Docker images
+      shell: |
+        {% if use_local_mongodb %}
+        docker compose --profile local-db -f {{ devops_dir }}/docker-compose.prod.yml pull
+        {% else %}
+        docker compose -f {{ devops_dir }}/docker-compose.prod.yml pull
+        {% endif %}
+      args:
+        chdir: "{{ devops_dir }}"
+      tags: deploy
+
+    - name: Deploy application with Docker Compose
+      shell: |
+        {% if use_local_mongodb %}
+        docker compose --profile local-db -f docker-compose.prod.yml up -d --build
+        {% else %}
+        docker compose -f docker-compose.prod.yml up -d --build
+        {% endif %}
+      args:
+        chdir: "{{ devops_dir }}"
+      tags: deploy
+
+    - name: Wait for services to be healthy
+      pause:
+        seconds: 15
+      tags: deploy
+
+    - name: Check container status
+      shell: docker compose -f {{ devops_dir }}/docker-compose.prod.yml ps
+      register: container_status
+      tags: deploy
+
+    - name: Display container status
+      debug:
+        var: container_status.stdout_lines
+      tags: deploy
+
+    - name: Clean up old Docker images
+      shell: docker image prune -f
+      tags: deploy
+
+    # Backup
+    - name: Create backup directory
+      file:
+        path: /opt/backups
+        state: directory
+        mode: '0755'
+      tags: backup
+
+    - name: Backup MongoDB
+      shell: |
+        docker exec mail-app-mongo mongodump --out /tmp/backup
+        docker cp mail-app-mongo:/tmp/backup /opt/backups/mongo-$(date +%Y%m%d-%H%M%S)
+      tags: backup
+      ignore_errors: true
+
+    - name: Remove old backups (keep last 7 days)
+      shell: find /opt/backups -type d -mtime +7 -exec rm -rf {} +
+      tags: backup
+
+  handlers:
+    - name: Restart nginx
+      shell: docker restart mail-app-nginx
