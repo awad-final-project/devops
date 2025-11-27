@@ -1,5 +1,8 @@
 services:
   backend-dev:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
     image: ghcr.io/awad-final-project/backend:dev
     container_name: mail-app-backend-dev
     restart: unless-stopped
@@ -14,6 +17,9 @@ services:
     # For now assuming sharing the mongo from prod or using external Atlas defined in .env.dev
 
   frontend-dev:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
     image: ghcr.io/awad-final-project/frontend:dev
     container_name: mail-app-frontend-dev
     restart: unless-stopped

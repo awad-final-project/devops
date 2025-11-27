@@ -199,6 +199,7 @@
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
+      ignore_errors: true
       tags: deploy
 
     - name: Deploy application with Docker Compose
