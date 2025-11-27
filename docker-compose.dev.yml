@@ -22,6 +22,22 @@ services:
     networks:
       - app-network
 
+  nginx:
+    image: nginx:alpine
+    container_name: mail-app-nginx
+    restart: unless-stopped
+    volumes:
+      - /opt/devops/config/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - /opt/devops/config/nginx/ssl:/etc/nginx/ssl:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend-dev
+      - frontend-dev
+    networks:
+      - app-network
+
 networks:
   app-network:
     external: true
