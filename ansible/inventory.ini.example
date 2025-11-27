@@ -31,6 +31,10 @@ backend_repo=https://github.com/awad-final-project/backend.git
 frontend_repo=https://github.com/awad-final-project/frontend.git
 devops_repo=https://github.com/awad-final-project/devops.git
 
+# GitHub Container Registry (Optional - for pulling pre-built images)
+# github_user=your_github_username
+# github_token=ghp_your_personal_access_token
+
 # Application settings
 app_dir=/opt
 

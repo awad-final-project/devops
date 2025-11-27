@@ -190,6 +190,14 @@
       tags: ssl
 
     # Deploy Application
+    - name: Log in to GitHub Container Registry
+      docker_login:
+        registry: ghcr.io
+        username: "{{ github_user }}"
+        password: "{{ github_token }}"
+      when: github_user is defined and github_token is defined
+      tags: deploy
+
     - name: Pull Docker images
       shell: |
         {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
