@@ -190,6 +190,11 @@
       tags: ssl
 
     # Deploy Application
+    - name: Create external Docker network
+      docker_network:
+        name: mail-app-network
+      tags: deploy
+
     - name: Log in to GitHub Container Registry
       docker_login:
         registry: ghcr.io
