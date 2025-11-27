@@ -34,9 +34,9 @@ services:
     env_file:
       - /opt/backend/.env
     environment:
-      # MONGO_URI is read from /opt/backend/.env
-      # Local DB:  mongodb://admin:password@mongo:27017
-      # Atlas:     mongodb+srv://user:pass@cluster.mongodb.net/dbname
+      # Note: env_file variables are loaded first, then these override them
+      # MONGO_URI, JWT_SECRET, etc. are read from /opt/backend/.env
+      # Only explicitly set variables that need different values here
       - PORT=3000
       - NODE_ENV=production
     depends_on:
@@ -76,4 +76,5 @@ volumes:
 
 networks:
   app-network:
+    name: mail-app-network
     driver: bridge

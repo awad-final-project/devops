@@ -1,16 +1,12 @@
 ---
 - name: Deploy Mail Application
-  hosts: production
+  hosts: all
   become: true
   vars:
-    app_dir: "{{ app_dir | default('/opt') }}"
-    backend_dir: "{{ app_dir }}/backend"
-    frontend_dir: "{{ app_dir }}/frontend"
-    devops_dir: "{{ app_dir }}/devops"
-    # MongoDB Options:
-    # - true:  Use local MongoDB in Docker (requires --profile local-db)
-    # - false: Use external MongoDB Atlas (set MONGO_URI in .env)
-    use_local_mongodb: "{{ use_local_mongodb | default(true) }}"
+    # Derived variables (using defaults in case inventory vars are missing)
+    backend_dir: "{{ app_dir | default('/opt') }}/backend"
+    frontend_dir: "{{ app_dir | default('/opt') }}/frontend"
+    devops_dir: "{{ app_dir | default('/opt') }}/devops"
 
   tasks:
     # Initial Setup
@@ -57,6 +53,13 @@
         enabled: yes
       tags: setup
 
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+      tags: setup
+
     # Firewall Configuration
     - name: Configure UFW firewall
       ufw:
@@ -90,7 +93,7 @@
       git:
         repo: "{{ backend_repo }}"
         dest: "{{ backend_dir }}"
-        version: main
+        version: "{{ branch | default('main') }}"
         force: yes
       tags: [setup, deploy]
 
@@ -98,7 +101,7 @@
       git:
         repo: "{{ frontend_repo }}"
         dest: "{{ frontend_dir }}"
-        version: main
+        version: "{{ branch | default('main') }}"
         force: yes
       tags: [setup, deploy]
 
@@ -114,7 +117,7 @@
     - name: Create backend .env file
       template:
         src: templates/backend.env.j2
-        dest: "{{ backend_dir }}/.env"
+        dest: "{{ backend_dir }}/.env{% if (env_type | default('production')) == 'development' %}.dev{% endif %}"
         mode: '0600'
       tags: [setup, config]
 
@@ -189,10 +192,10 @@
     # Deploy Application
     - name: Pull Docker images
       shell: |
-        {% if use_local_mongodb %}
-        docker compose --profile local-db -f {{ devops_dir }}/docker-compose.prod.yml pull
+        {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
+        docker compose --profile local-db -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
         {% else %}
-        docker compose -f {{ devops_dir }}/docker-compose.prod.yml pull
+        docker compose -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
@@ -200,10 +203,10 @@
 
     - name: Deploy application with Docker Compose
       shell: |
-        {% if use_local_mongodb %}
-        docker compose --profile local-db -f docker-compose.prod.yml up -d --build
+        {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
+        docker compose --profile local-db -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build
         {% else %}
-        docker compose -f docker-compose.prod.yml up -d --build
+        docker compose -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
@@ -215,7 +218,7 @@
       tags: deploy
 
     - name: Check container status
-      shell: docker compose -f {{ devops_dir }}/docker-compose.prod.yml ps
+      shell: docker compose -f {{ devops_dir }}/{{ compose_file }} ps
       register: container_status
       tags: deploy
 

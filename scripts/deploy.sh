@@ -127,8 +127,23 @@ echo "🔨 Building and deploying containers..."
 
 cd "$DEVOPS_DIR"
 
-# Pull latest images
-docker compose $PROFILE_ARG -f "$COMPOSE_FILE" pull
+# Check if we need to pull images or build locally
+if docker compose $PROFILE_ARG -f "$COMPOSE_FILE" config | grep -q "ghcr.io"; then
+    echo "📦 Detected GitHub Container Registry images..."
+    echo "ℹ️  If images are private, make sure you're logged in:"
+    echo "    echo YOUR_GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin"
+    echo ""
+    echo "🔄 Attempting to pull images..."
+    
+    # Try to pull, but continue if it fails (we can build locally)
+    if ! docker compose $PROFILE_ARG -f "$COMPOSE_FILE" pull 2>/dev/null; then
+        print_warning "Could not pull images from registry. Will build locally instead."
+    else
+        print_status "Images pulled successfully"
+    fi
+else
+    print_status "Using local build configuration"
+fi
 
 # Build and start containers
 docker compose $PROFILE_ARG -f "$COMPOSE_FILE" up -d --build

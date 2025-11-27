@@ -1,0 +1,63 @@
+[production]
+# Add your production servers here
+# prod_server ansible_host=1.2.3.4 ansible_user=ubuntu
+
+[development]
+# Add your development servers here
+# dev_server ansible_host=5.6.7.8 ansible_user=ubuntu
+
+[production:vars]
+ansible_python_interpreter=/usr/bin/python3
+domain_name=mail.nguyenanhhao.site
+ssl_email=your-email@example.com
+env_type=production
+compose_file=docker-compose.prod.yml
+branch=main
+
+[development:vars]
+ansible_python_interpreter=/usr/bin/python3
+domain_name=mail-dev.nguyenanhhao.site
+ssl_email=your-email@example.com
+env_type=development
+compose_file=docker-compose.dev.yml
+branch=dev
+
+[all:vars]
+# AWS PEM Key Configuration
+# ansible_ssh_private_key_file=/path/to/your-key.pem
+
+# GitHub repositories
+backend_repo=https://github.com/awad-final-project/backend.git
+frontend_repo=https://github.com/awad-final-project/frontend.git
+devops_repo=https://github.com/awad-final-project/devops.git
+
+# Application settings
+app_dir=/opt
+
+# MongoDB Configuration
+# Set to 'true' for local MongoDB in Docker, 'false' for external MongoDB Atlas
+use_local_mongodb=true
+
+# Option 1: Local MongoDB (use_local_mongodb=true)
+mongo_root_user=admin
+mongo_root_password=CHANGE_THIS_STRONG_PASSWORD
+
+# Option 2: External MongoDB / Atlas (use_local_mongodb=false)
+# mongo_uri=mongodb+srv://username:password@cluster0.xxxxx.mongodb.net/user_registration?retryWrites=true&w=majority
+# mongo_db=user_registration
+
+# JWT Configuration
+jwt_secret=CHANGE_THIS_JWT_SECRET
+jwt_expires_in=7d
+jwt_refresh_secret=CHANGE_THIS_REFRESH_SECRET
+jwt_refresh_expires_in=30d
+
+# Google OAuth (Optional)
+# google_client_id=your_google_client_id
+# google_client_secret=your_google_client_secret
+
+# Email Configuration (Optional - SMTP)
+# smtp_host=smtp.gmail.com
+# smtp_port=587
+# smtp_user=your_email@gmail.com
+# smtp_pass=your_app_password

@@ -1,0 +1,28 @@
+services:
+  backend-dev:
+    image: ghcr.io/awad-final-project/backend:dev
+    container_name: mail-app-backend-dev
+    restart: unless-stopped
+    env_file:
+      - /opt/backend/.env.dev
+    environment:
+      - PORT=3000
+      - NODE_ENV=development
+    networks:
+      - app-network
+    # Optional: Connect to the same mongo if needed, or use a separate dev mongo
+    # For now assuming sharing the mongo from prod or using external Atlas defined in .env.dev
+
+  frontend-dev:
+    image: ghcr.io/awad-final-project/frontend:dev
+    container_name: mail-app-frontend-dev
+    restart: unless-stopped
+    depends_on:
+      - backend-dev
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    external: true
+    name: mail-app-network
