@@ -212,11 +212,21 @@
         name: mail-app-network
       tags: deploy
 
-    - name: Log in to GitHub Container Registry
+    - name: Log in to GitHub Container Registry (root)
       docker_login:
         registry: ghcr.io
         username: "{{ github_user }}"
         password: "{{ github_token }}"
+      when: github_user is defined and github_token is defined
+      tags: deploy
+
+    - name: Log in to GitHub Container Registry (user)
+      docker_login:
+        registry: ghcr.io
+        username: "{{ github_user }}"
+        password: "{{ github_token }}"
+      become: true
+      become_user: "{{ ansible_user }}"
       when: github_user is defined and github_token is defined
       tags: deploy
 
