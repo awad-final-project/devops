@@ -113,12 +113,27 @@
         force: yes
       tags: [setup, deploy]
 
+    - name: Ensure application directories are owned by ansible_user
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+        recurse: yes
+      loop:
+        - "{{ backend_dir }}"
+        - "{{ frontend_dir }}"
+        - "{{ devops_dir }}"
+      tags: [setup, deploy]
+
     # Environment Configuration
     - name: Create backend .env file
       template:
         src: templates/backend.env.j2
         dest: "{{ backend_dir }}/.env{% if (env_type | default('production')) == 'development' %}.dev{% endif %}"
         mode: '0600'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
       tags: [setup, config]
 
     - name: Create devops .env file
@@ -126,6 +141,8 @@
         src: templates/docker-compose.env.j2
         dest: "{{ devops_dir }}/.env"
         mode: '0600'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
       tags: [setup, config]
 
     # SSL Certificate Setup
