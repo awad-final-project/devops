@@ -80,6 +80,13 @@
         state: enabled
       tags: setup
 
+    - name: Create web network if not exists
+      docker_network:
+        name: web
+        state: present
+      when: env_type == 'development'
+      tags: [setup, deploy]
+
     # Clone Repositories
     - name: Create application directories
       file:
