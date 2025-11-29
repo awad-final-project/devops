@@ -4,7 +4,7 @@ services:
     container_name: {{ app_name }}-backend
     restart: unless-stopped
     env_file:
-      - {{ app_dir }}/backend/.env.dev
+      - {{ app_root }}/backend/.env.dev
     environment:
       - PORT=3000
       - NODE_ENV=development
