@@ -6,6 +6,10 @@
     traefik_dir: "/opt/traefik"
 
   tasks:
+    - name: Remove legacy nginx container (if exists)
+      shell: docker rm -f mail-app-nginx
+      ignore_errors: true
+
     - name: Create Traefik directory
       file:
         path: "{{ traefik_dir }}"
@@ -19,6 +23,14 @@
         path: "{{ traefik_dir }}/letsencrypt"
         state: directory
         mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Create acme.json file
+      file:
+        path: "{{ traefik_dir }}/letsencrypt/acme.json"
+        state: touch
+        mode: '0600'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
 

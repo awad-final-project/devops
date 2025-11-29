@@ -156,6 +156,16 @@
         group: "{{ ansible_user }}"
       tags: [setup, config]
 
+    - name: Copy Nginx Traefik config
+      copy:
+        src: ../config/nginx/nginx.dev.traefik.conf
+        dest: "{{ devops_dir }}/config/nginx/nginx.dev.traefik.conf"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: env_type == 'development'
+      tags: [setup, config]
+
     # Generate Docker Compose file from template for dev environments
     - name: Generate Docker Compose file
       template:
