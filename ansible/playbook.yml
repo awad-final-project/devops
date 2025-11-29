@@ -189,6 +189,37 @@
       notify: Restart nginx
       tags: [setup, config]
 
+    # Docker Login (Moved up to allow image checking)
+    - name: Log in to GitHub Container Registry (root)
+      docker_login:
+        registry: ghcr.io
+        username: "{{ github_user }}"
+        password: "{{ github_token }}"
+      when: github_user is defined and github_token is defined
+      tags: [setup, deploy]
+
+    # Check Frontend Image Existence
+    - name: Check if specific frontend image exists
+      shell: docker manifest inspect ghcr.io/awad-final-project/frontend:{{ frontend_branch }}
+      register: frontend_image_check
+      ignore_errors: true
+      environment:
+        DOCKER_CLI_EXPERIMENTAL: enabled
+      when: env_type == 'development'
+      tags: [setup, config]
+
+    - name: Determine final frontend branch
+      set_fact:
+        final_frontend_branch: "{{ frontend_branch if (frontend_image_check.rc is defined and frontend_image_check.rc == 0) else 'dev' }}"
+      when: env_type == 'development'
+      tags: [setup, config]
+
+    - name: Debug Final Frontend Branch
+      debug:
+        msg: "Requested: {{ frontend_branch }}, Final: {{ final_frontend_branch }}"
+      when: env_type == 'development'
+      tags: [setup, config]
+
     # Generate Docker Compose file from template for dev environments
     - name: Generate Docker Compose file
       template:

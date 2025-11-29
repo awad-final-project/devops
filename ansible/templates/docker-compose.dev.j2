@@ -13,7 +13,7 @@ services:
       - web
 
   frontend-dev:
-    image: ghcr.io/awad-final-project/frontend:{{ branch }}
+    image: ghcr.io/awad-final-project/frontend:{{ final_frontend_branch | default('dev') }}
     container_name: {{ app_name }}-frontend
     restart: unless-stopped
     depends_on:
