@@ -35,7 +35,17 @@ jobs:
       - name: Setup SSH Key
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          # Logic: Try to decode Base64. If valid Base64, use decoded content. If not, use original content.
+          # We write to a temp file first to check
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/temp_key
+          if base64 -d ~/.ssh/temp_key > ~/.ssh/id_rsa 2>/dev/null; then
+            echo "SSH Key detected as Base64. Decoded successfully."
+          else
+            echo "SSH Key is likely Plaintext. Using as is."
+            cp ~/.ssh/temp_key ~/.ssh/id_rsa
+          fi
+          rm ~/.ssh/temp_key
+          
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEV_SERVER_IP }} >> ~/.ssh/known_hosts
 
@@ -53,6 +63,7 @@ jobs:
           echo "" >> inventory.ini
           echo "[all:vars]" >> inventory.ini
           echo "ansible_ssh_private_key_file=~/.ssh/id_rsa" >> inventory.ini
+          echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null'" >> inventory.ini
           echo "backend_repo=https://github.com/awad-final-project/backend.git" >> inventory.ini
           echo "frontend_repo=https://github.com/awad-final-project/frontend.git" >> inventory.ini
           echo "devops_repo=https://github.com/awad-final-project/devops.git" >> inventory.ini
