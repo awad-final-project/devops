@@ -214,9 +214,25 @@
       when: env_type == 'development'
       tags: [setup, config]
 
-    - name: Debug Final Frontend Branch
+    # Check Backend Image Existence
+    - name: Check if specific backend image exists
+      shell: docker manifest inspect ghcr.io/awad-final-project/backend:{{ branch }}
+      register: backend_image_check
+      ignore_errors: true
+      environment:
+        DOCKER_CLI_EXPERIMENTAL: enabled
+      when: env_type == 'development'
+      tags: [setup, config]
+
+    - name: Determine final backend branch
+      set_fact:
+        final_backend_branch: "{{ branch if (backend_image_check.rc is defined and backend_image_check.rc == 0) else 'dev' }}"
+      when: env_type == 'development'
+      tags: [setup, config]
+
+    - name: Debug Final Branches
       debug:
-        msg: "Requested: {{ frontend_branch }}, Final: {{ final_frontend_branch }}"
+        msg: "Frontend: {{ final_frontend_branch }}, Backend: {{ final_backend_branch }}"
       when: env_type == 'development'
       tags: [setup, config]
 
