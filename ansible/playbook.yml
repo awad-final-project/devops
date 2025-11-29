@@ -13,7 +13,8 @@
   tasks:
     - name: Set full domain name
       set_fact:
-        full_domain_name: "{% if app_name == 'dev' %}{{ domain_name }}{% else %}{{ app_name }}.{{ domain_name }}{% endif %}"
+        # Handle cases where domain_name is passed as full domain (GH Actions) or base domain (Inventory)
+        full_domain_name: "{% if app_name == 'dev' %}{{ domain_name }}{% elif app_name in domain_name %}{{ domain_name }}{% else %}{{ app_name }}.{{ domain_name }}{% endif %}"
       tags: [always]
 
     # Initial Setup
