@@ -156,10 +156,10 @@
         group: "{{ ansible_user }}"
       tags: [setup, config]
 
-    - name: Create Nginx Traefik config from template
+    - name: Create Nginx config from template
       template:
-        src: templates/nginx.dev.traefik.conf.j2
-        dest: "{{ devops_dir }}/config/nginx/nginx.dev.traefik.conf"
+        src: templates/nginx.dev.conf.j2
+        dest: "{{ devops_dir }}/config/nginx/nginx.dev.conf"
         mode: '0644'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
@@ -178,18 +178,17 @@
       when: env_type == 'development'
       tags: [setup, config]
 
-    # SSL Certificate Setup (Only for Production or non-Traefik setups)
+    # SSL Certificate Setup (For Production and Development)
     - name: Check if SSL certificate exists
       stat:
         path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
       register: ssl_cert
-      when: env_type == 'production'
       tags: ssl
 
     - name: Stop nginx container for SSL setup
-      shell: docker stop mail-app-nginx
+      shell: docker stop {{ app_name }}-nginx
       ignore_errors: true
-      when: env_type == 'production' and not ssl_cert.stat.exists
+      when: not ssl_cert.stat.exists
       tags: ssl
 
     - name: Obtain SSL certificate
@@ -199,7 +198,7 @@
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
-      when: env_type == 'production' and not ssl_cert.stat.exists
+      when: not ssl_cert.stat.exists
       tags: ssl
 
     - name: Create SSL directory in devops
@@ -207,7 +206,6 @@
         path: "{{ devops_dir }}/config/nginx/ssl"
         state: directory
         mode: '0755'
-      when: env_type == 'production'
       tags: ssl
 
     - name: Copy SSL certificates
@@ -219,7 +217,6 @@
       loop:
         - fullchain.pem
         - privkey.pem
-      when: env_type == 'production'
       tags: ssl
 
     # Deploy Application
