@@ -238,13 +238,20 @@
     - name: Generate Nginx Config for Preview
       template:
         src: templates/nginx.preview.conf.j2
-        dest: "{{ devops_dir }}/config/nginx/sites-enabled/{{ app_name }}.conf"
+        # FIX: Write to the main dev environment's nginx config folder
+        # Assuming base_app_dir is /opt and main dev app_name is 'dev'
+        dest: "{{ base_app_dir | default('/opt') }}/dev/devops/config/nginx/sites-enabled/{{ app_name }}.conf"
         mode: '0644'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
       when: app_name != 'dev'
-      notify: Reload Nginx
       tags: [config, ssl]
+
+    - name: Force Reload Nginx (to pick up new certs/configs)
+      shell: docker exec dev-nginx nginx -s reload
+      when: app_name != 'dev'
+      ignore_errors: true
+      tags: [config, ssl, deploy]
 
     # Deploy Application
     - name: Create external Docker network
