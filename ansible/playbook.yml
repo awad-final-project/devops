@@ -11,6 +11,11 @@
     devops_dir: "{{ app_root }}/devops"
 
   tasks:
+    - name: Set full domain name
+      set_fact:
+        full_domain_name: "{% if app_name == 'dev' %}{{ domain_name }}{% else %}{{ app_name }}.{{ domain_name }}{% endif %}"
+      tags: [always]
+
     # Initial Setup
     - name: Update apt cache
       apt:
@@ -156,6 +161,22 @@
         group: "{{ ansible_user }}"
       tags: [setup, config]
 
+    - name: Create Certbot webroot directory
+      file:
+        path: /var/www/certbot
+        state: directory
+        mode: '0755'
+      tags: [setup, ssl]
+
+    - name: Create Nginx sites-enabled directory
+      file:
+        path: "{{ devops_dir }}/config/nginx/sites-enabled"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      tags: [setup, config]
+
     - name: Create Nginx config from template
       template:
         src: templates/nginx.dev.conf.j2
@@ -163,7 +184,7 @@
         mode: '0644'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-      when: env_type == 'development'
+      when: app_name == 'dev'
       notify: Restart nginx
       tags: [setup, config]
 
@@ -178,49 +199,52 @@
       when: env_type == 'development'
       tags: [setup, config]
 
-    # SSL Certificate Setup (For Production and Development)
+    # SSL Certificate Setup
     - name: Check if SSL certificate exists
       stat:
-        path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+        path: "/etc/letsencrypt/live/{{ full_domain_name }}/fullchain.pem"
       register: ssl_cert
-      when: app_name == 'dev'
       tags: ssl
 
-    - name: Stop nginx container for SSL setup
+    # Main Domain SSL (Standalone)
+    - name: Stop nginx container for SSL setup (Main Domain)
       shell: docker stop {{ app_name }}-nginx
       ignore_errors: true
       when: app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
-    - name: Obtain SSL certificate
+    - name: Obtain SSL certificate (Main Domain - Standalone)
       shell: |
         certbot certonly --standalone \
-          -d {{ domain_name }} \
+          -d {{ full_domain_name }} \
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
       when: app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
-    - name: Create SSL directory in devops
-      file:
-        path: "{{ devops_dir }}/config/nginx/ssl"
-        state: directory
-        mode: '0755'
-      when: app_name == 'dev'
+    # Preview Domain SSL (Webroot)
+    - name: Obtain SSL certificate (Preview Domain - Webroot)
+      shell: |
+        certbot certonly --webroot \
+          -w /var/www/certbot \
+          -d {{ full_domain_name }} \
+          --email {{ ssl_email }} \
+          --agree-tos \
+          --non-interactive
+      when: app_name != 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
-    - name: Copy SSL certificates
-      copy:
-        src: "/etc/letsencrypt/live/{{ domain_name }}/{{ item }}"
-        dest: "{{ devops_dir }}/config/nginx/ssl/{{ item }}"
-        remote_src: yes
+    - name: Generate Nginx Config for Preview
+      template:
+        src: templates/nginx.preview.conf.j2
+        dest: "{{ devops_dir }}/config/nginx/sites-enabled/{{ app_name }}.conf"
         mode: '0644'
-      loop:
-        - fullchain.pem
-        - privkey.pem
-      when: app_name == 'dev'
-      tags: ssl
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: app_name != 'dev'
+      notify: Reload Nginx
+      tags: [config, ssl]
 
     # Deploy Application
     - name: Create external Docker network
@@ -314,4 +338,8 @@
   handlers:
     - name: Restart nginx
       shell: docker restart {{ app_name | default('mail-app') }}-nginx
+      ignore_errors: true
+
+    - name: Reload Nginx
+      shell: docker exec dev-nginx nginx -s reload
       ignore_errors: true

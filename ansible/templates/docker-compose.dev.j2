@@ -29,7 +29,9 @@ services:
     restart: unless-stopped
     volumes:
       - {{ devops_dir }}/config/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
-      - {{ devops_dir }}/config/nginx/ssl:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - {{ devops_dir }}/config/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
     ports:
       - "80:80"
       - "443:443"
