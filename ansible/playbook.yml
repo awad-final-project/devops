@@ -171,7 +171,7 @@
     - name: Generate Docker Compose file
       template:
         src: templates/docker-compose.dev.j2
-        dest: "{{ devops_dir }}/docker-compose.dev.yml"
+        dest: "{{ devops_dir }}/docker-compose.{{ app_name }}.yml"
         mode: '0644'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
@@ -183,12 +183,13 @@
       stat:
         path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
       register: ssl_cert
+      when: app_name == 'dev'
       tags: ssl
 
     - name: Stop nginx container for SSL setup
       shell: docker stop {{ app_name }}-nginx
       ignore_errors: true
-      when: not ssl_cert.stat.exists
+      when: app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Obtain SSL certificate
@@ -198,7 +199,7 @@
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
-      when: not ssl_cert.stat.exists
+      when: app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Create SSL directory in devops
@@ -206,6 +207,7 @@
         path: "{{ devops_dir }}/config/nginx/ssl"
         state: directory
         mode: '0755'
+      when: app_name == 'dev'
       tags: ssl
 
     - name: Copy SSL certificates
@@ -217,6 +219,7 @@
       loop:
         - fullchain.pem
         - privkey.pem
+      when: app_name == 'dev'
       tags: ssl
 
     # Deploy Application
@@ -249,7 +252,7 @@
         {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
         docker compose --profile local-db -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
         {% else %}
-        docker compose -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
+        docker compose -f {{ devops_dir }}/docker-compose.{{ app_name }}.yml pull
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
@@ -261,7 +264,7 @@
         {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
         docker compose --profile local-db -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build
         {% else %}
-        docker compose -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build
+        docker compose -p {{ app_name }} -f docker-compose.{{ app_name }}.yml up -d --build
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
@@ -273,7 +276,7 @@
       tags: deploy
 
     - name: Check container status
-      shell: docker compose -f {{ devops_dir }}/{{ compose_file }} ps
+      shell: docker compose -p {{ app_name }} -f {{ devops_dir }}/docker-compose.{{ app_name }}.yml ps
       register: container_status
       tags: deploy
 
