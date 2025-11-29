@@ -120,6 +120,17 @@
         dest: "{{ frontend_dir }}"
         version: "{{ frontend_branch | default(branch) | default('main') }}"
         force: yes
+      ignore_errors: true
+      register: git_clone_frontend
+      tags: [setup, deploy]
+
+    - name: Fallback to dev branch if frontend clone fails
+      git:
+        repo: "{{ frontend_repo }}"
+        dest: "{{ frontend_dir }}"
+        version: "dev"
+        force: yes
+      when: git_clone_frontend.failed
       tags: [setup, deploy]
 
     - name: Clone devops repository
