@@ -1,6 +1,6 @@
 services:
   backend-dev:
-    image: ghcr.io/awad-final-project/backend:{{ branch }}
+    image: ghcr.io/awad-final-project/backend:{{ final_backend_branch | default(branch) }}
     container_name: {{ app_name }}-backend
     restart: unless-stopped
     env_file:
