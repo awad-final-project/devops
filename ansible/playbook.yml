@@ -164,6 +164,7 @@
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
       when: env_type == 'development'
+      notify: Restart nginx
       tags: [setup, config]
 
     # Generate Docker Compose file from template for dev environments
@@ -312,4 +313,5 @@
 
   handlers:
     - name: Restart nginx
-      shell: docker restart mail-app-nginx
+      shell: docker restart {{ app_name | default('mail-app') }}-nginx
+      ignore_errors: true
