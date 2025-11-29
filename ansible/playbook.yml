@@ -156,9 +156,9 @@
         group: "{{ ansible_user }}"
       tags: [setup, config]
 
-    - name: Copy Nginx Traefik config
-      copy:
-        src: ../config/nginx/nginx.dev.traefik.conf
+    - name: Create Nginx Traefik config from template
+      template:
+        src: templates/nginx.dev.traefik.conf.j2
         dest: "{{ devops_dir }}/config/nginx/nginx.dev.traefik.conf"
         mode: '0644'
         owner: "{{ ansible_user }}"
