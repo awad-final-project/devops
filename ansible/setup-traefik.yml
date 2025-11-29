@@ -1,0 +1,41 @@
+---
+- name: Setup Traefik
+  hosts: dev_server
+  become: true
+  vars:
+    traefik_dir: "/opt/traefik"
+
+  tasks:
+    - name: Create Traefik directory
+      file:
+        path: "{{ traefik_dir }}"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Create letsencrypt directory
+      file:
+        path: "{{ traefik_dir }}/letsencrypt"
+        state: directory
+        mode: '0755'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Copy Traefik docker-compose
+      copy:
+        src: ../traefik/docker-compose.yml
+        dest: "{{ traefik_dir }}/docker-compose.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+
+    - name: Create web network if not exists
+      docker_network:
+        name: web
+        state: present
+
+    - name: Start Traefik
+      shell: docker compose up -d
+      args:
+        chdir: "{{ traefik_dir }}"

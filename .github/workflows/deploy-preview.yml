@@ -1,0 +1,51 @@
+name: Deploy Preview Environment
+
+on:
+  repository_dispatch:
+    types: [deploy-preview]
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'Application Name (e.g., preview-feat-login)'
+        required: true
+      branch_backend:
+        description: 'Backend Branch'
+        required: true
+        default: 'dev'
+      branch_frontend:
+        description: 'Frontend Branch'
+        required: true
+        default: 'dev'
+      domain_prefix:
+        description: 'Subdomain prefix (e.g., preview-feat-login)'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout DevOps Repo
+        uses: actions/checkout@v3
+
+      - name: Install Ansible
+        run: |
+          sudo apt update
+          sudo apt install -y ansible
+
+      - name: Setup SSH Key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.DEV_SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Run Ansible Playbook
+        run: |
+          cd ansible
+          ansible-playbook -i inventory.ini playbook.yml \
+            -l dev_server \
+            -e "app_name=${{ github.event.client_payload.app_name || inputs.app_name }}" \
+            -e "branch=${{ github.event.client_payload.branch_backend || inputs.branch_backend }}" \
+            -e "frontend_branch=${{ github.event.client_payload.branch_frontend || inputs.branch_frontend }}" \
+            -e "domain_name=${{ github.event.client_payload.domain_prefix || inputs.domain_prefix }}.mail-dev.nguyenanhhao.site" \
+            -e "env_type=development"

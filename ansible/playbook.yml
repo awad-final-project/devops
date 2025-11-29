@@ -4,9 +4,11 @@
   become: true
   vars:
     # Derived variables (using defaults in case inventory vars are missing)
-    backend_dir: "{{ app_dir | default('/opt') }}/backend"
-    frontend_dir: "{{ app_dir | default('/opt') }}/frontend"
-    devops_dir: "{{ app_dir | default('/opt') }}/devops"
+    # For dev environments, we use app_name to separate deployments
+    app_root: "{{ base_app_dir | default('/opt') }}/{{ app_name | default('') }}"
+    backend_dir: "{{ app_root }}/backend"
+    frontend_dir: "{{ app_root }}/frontend"
+    devops_dir: "{{ app_root }}/devops"
 
   tasks:
     # Initial Setup
@@ -70,6 +72,7 @@
         - { rule: 'allow', port: '22', proto: 'tcp' }
         - { rule: 'allow', port: '80', proto: 'tcp' }
         - { rule: 'allow', port: '443', proto: 'tcp' }
+        - { rule: 'allow', port: '8080', proto: 'tcp' } # Traefik Dashboard
       tags: setup
 
     - name: Enable UFW
@@ -84,6 +87,7 @@
         state: directory
         mode: '0755'
       loop:
+        - "{{ app_root }}"
         - "{{ backend_dir }}"
         - "{{ frontend_dir }}"
         - "{{ devops_dir }}"
@@ -101,7 +105,7 @@
       git:
         repo: "{{ frontend_repo }}"
         dest: "{{ frontend_dir }}"
-        version: "{{ branch | default('main') }}"
+        version: "{{ frontend_branch | default(branch) | default('main') }}"
         force: yes
       tags: [setup, deploy]
 
@@ -145,17 +149,29 @@
         group: "{{ ansible_user }}"
       tags: [setup, config]
 
-    # SSL Certificate Setup
+    # Generate Docker Compose file from template for dev environments
+    - name: Generate Docker Compose file
+      template:
+        src: templates/docker-compose.dev.j2
+        dest: "{{ devops_dir }}/docker-compose.dev.yml"
+        mode: '0644'
+        owner: "{{ ansible_user }}"
+        group: "{{ ansible_user }}"
+      when: env_type == 'development'
+      tags: [setup, config]
+
+    # SSL Certificate Setup (Only for Production or non-Traefik setups)
     - name: Check if SSL certificate exists
       stat:
         path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
       register: ssl_cert
+      when: env_type == 'production'
       tags: ssl
 
     - name: Stop nginx container for SSL setup
       shell: docker stop mail-app-nginx
       ignore_errors: true
-      when: not ssl_cert.stat.exists
+      when: env_type == 'production' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Obtain SSL certificate
@@ -165,7 +181,7 @@
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
-      when: not ssl_cert.stat.exists
+      when: env_type == 'production' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Create SSL directory in devops
@@ -173,6 +189,7 @@
         path: "{{ devops_dir }}/config/nginx/ssl"
         state: directory
         mode: '0755'
+      when: env_type == 'production'
       tags: ssl
 
     - name: Copy SSL certificates
@@ -184,32 +201,14 @@
       loop:
         - fullchain.pem
         - privkey.pem
-      tags: ssl
-
-    - name: Create SSL renewal hook
-      copy:
-        dest: /etc/letsencrypt/renewal-hooks/post/reload-nginx.sh
-        mode: '0755'
-        content: |
-          #!/bin/bash
-          cp /etc/letsencrypt/live/{{ domain_name }}/fullchain.pem {{ devops_dir }}/config/nginx/ssl/
-          cp /etc/letsencrypt/live/{{ domain_name }}/privkey.pem {{ devops_dir }}/config/nginx/ssl/
-          chmod 644 {{ devops_dir }}/config/nginx/ssl/*.pem
-          docker restart mail-app-nginx
-      tags: ssl
-
-    - name: Add certbot renewal cron job
-      cron:
-        name: "Renew SSL certificates"
-        minute: "0"
-        hour: "2"
-        job: "certbot renew --quiet"
+      when: env_type == 'production'
       tags: ssl
 
     # Deploy Application
     - name: Create external Docker network
       docker_network:
         name: mail-app-network
+      when: env_type == 'production'
       tags: deploy
 
     - name: Log in to GitHub Container Registry (root)
@@ -272,23 +271,26 @@
       shell: docker image prune -f
       tags: deploy
 
-    # Backup
+    # Backup (Only for production)
     - name: Create backup directory
       file:
         path: /opt/backups
         state: directory
         mode: '0755'
+      when: env_type == 'production'
       tags: backup
 
     - name: Backup MongoDB
       shell: |
         docker exec mail-app-mongo mongodump --out /tmp/backup
         docker cp mail-app-mongo:/tmp/backup /opt/backups/mongo-$(date +%Y%m%d-%H%M%S)
+      when: env_type == 'production'
       tags: backup
       ignore_errors: true
 
     - name: Remove old backups (keep last 7 days)
       shell: find /opt/backups -type d -mtime +7 -exec rm -rf {} +
+      when: env_type == 'production'
       tags: backup
 
   handlers:
