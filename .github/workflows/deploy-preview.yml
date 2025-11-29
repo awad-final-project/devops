@@ -39,6 +39,36 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.DEV_SERVER_IP }} >> ~/.ssh/known_hosts
 
+      - name: Create Inventory File
+        run: |
+          cd ansible
+          echo "[development]" > inventory.ini
+          echo "dev_server ansible_host=${{ secrets.DEV_SERVER_IP }} ansible_user=ubuntu" >> inventory.ini
+          echo "" >> inventory.ini
+          echo "[development:vars]" >> inventory.ini
+          echo "ansible_python_interpreter=/usr/bin/python3" >> inventory.ini
+          echo "ssl_email=anhhao012004@gmail.com" >> inventory.ini
+          echo "env_type=development" >> inventory.ini
+          echo "compose_file=docker-compose.dev.yml" >> inventory.ini
+          echo "" >> inventory.ini
+          echo "[all:vars]" >> inventory.ini
+          echo "ansible_ssh_private_key_file=~/.ssh/id_rsa" >> inventory.ini
+          echo "backend_repo=https://github.com/awad-final-project/backend.git" >> inventory.ini
+          echo "frontend_repo=https://github.com/awad-final-project/frontend.git" >> inventory.ini
+          echo "devops_repo=https://github.com/awad-final-project/devops.git" >> inventory.ini
+          echo "github_user=awad-final-project" >> inventory.ini
+          echo "github_token=${{ secrets.GHCR_TOKEN }}" >> inventory.ini
+          echo "base_app_dir=/opt" >> inventory.ini
+          echo "use_local_mongodb=false" >> inventory.ini
+          echo "mongo_uri=${{ secrets.MONGO_URI }}" >> inventory.ini
+          echo "mongo_db=user_registration" >> inventory.ini
+          echo "jwt_secret=${{ secrets.JWT_SECRET }}" >> inventory.ini
+          echo "jwt_expires_in=7d" >> inventory.ini
+          echo "jwt_refresh_secret=${{ secrets.JWT_REFRESH_SECRET }}" >> inventory.ini
+          echo "jwt_refresh_expires_in=30d" >> inventory.ini
+          echo "google_client_id=${{ secrets.GOOGLE_CLIENT_ID }}" >> inventory.ini
+          echo "google_client_secret=${{ secrets.GOOGLE_CLIENT_SECRET }}" >> inventory.ini
+
       - name: Run Ansible Playbook
         run: |
           cd ansible
