@@ -67,7 +67,8 @@ http {
             proxy_pass $frontend_upstream;
             proxy_http_version 1.1;
 
-            proxy_set_header Host $host;
+            # Use the upstream hostname to match the successful curl test
+            proxy_set_header Host {{ app_name }}-frontend:80;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
