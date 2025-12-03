@@ -60,7 +60,7 @@ services:
     container_name: mail-app-nginx
     restart: unless-stopped
     volumes:
-      - /opt/devops/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
       - /etc/letsencrypt/live/mail.nguyenanhhao.site:/etc/nginx/ssl:ro
       - /var/www/certbot:/var/www/certbot:ro
     ports:
