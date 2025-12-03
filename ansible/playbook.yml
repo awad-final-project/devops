@@ -14,7 +14,10 @@
     - name: Set full domain name
       set_fact:
         # Handle cases where domain_name is passed as full domain (GH Actions) or base domain (Inventory)
-        full_domain_name: "{% if app_name == 'dev' %}{{ domain_name }}{% elif app_name in domain_name %}{{ domain_name }}{% else %}{{ app_name }}.{{ domain_name }}{% endif %}"
+        # For production (app_name=prod), use domain_name as-is without prefix
+        # For dev (app_name=dev), use domain_name as-is
+        # For preview branches (app_name=feature-x), add prefix: feature-x.mail-dev.nguyenanhhao.site
+        full_domain_name: "{% if app_name == 'prod' or app_name == 'dev' %}{{ domain_name }}{% else %}{{ app_name }}.{{ domain_name }}{% endif %}"
       tags: [always]
 
     # Initial Setup
