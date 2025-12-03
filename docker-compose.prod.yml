@@ -28,7 +28,7 @@ services:
       - "27017:27017"  # Accessible for MongoDB Compass when using local DB
 
   backend:
-    image: ghcr.io/awad-final-project/backend:latest
+    image: ghcr.io/awad-final-project/backend:main
     container_name: mail-app-backend
     restart: unless-stopped
     env_file:
@@ -47,7 +47,7 @@ services:
       - app-network
 
   frontend:
-    image: ghcr.io/awad-final-project/frontend:latest
+    image: ghcr.io/awad-final-project/frontend:main
     container_name: mail-app-frontend
     restart: unless-stopped
     depends_on:
