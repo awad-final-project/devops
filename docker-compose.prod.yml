@@ -32,10 +32,10 @@ services:
     container_name: mail-app-backend
     restart: unless-stopped
     env_file:
-      - /opt/backend/.env
+      - ../backend/.env
     environment:
       # Note: env_file variables are loaded first, then these override them
-      # MONGO_URI, JWT_SECRET, etc. are read from /opt/backend/.env
+      # MONGO_URI, JWT_SECRET, etc. are read from ../backend/.env
       # Only explicitly set variables that need different values here
       - PORT=3000
       - NODE_ENV=production
