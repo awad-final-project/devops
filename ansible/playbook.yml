@@ -416,7 +416,7 @@
         chdir: "{{ devops_dir }}"
       tags: deploy
 
-    # Production SSL Setup (After Deploy) - Using Webroot method
+    # Production SSL Setup (After Deploy) - Using Standalone method for initial cert
     - name: Check if SSL certificate exists (Production)
       stat:
         path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
@@ -424,10 +424,15 @@
       when: env_type == 'production'
       tags: [deploy, ssl]
 
-    - name: Obtain SSL certificate (Production - Webroot)
+    - name: Stop nginx container for SSL setup (Production)
+      shell: docker stop mail-app-nginx
+      ignore_errors: true
+      when: env_type == 'production' and not prod_ssl_cert.stat.exists
+      tags: [deploy, ssl]
+
+    - name: Obtain SSL certificate (Production - Standalone)
       shell: |
-        certbot certonly --webroot \
-          -w /var/www/certbot \
+        certbot certonly --standalone \
           -d {{ domain_name }} \
           --email {{ ssl_email }} \
           --agree-tos \
@@ -435,8 +440,8 @@
       when: env_type == 'production' and not prod_ssl_cert.stat.exists
       tags: [deploy, ssl]
 
-    - name: Reload shared nginx after obtaining SSL (Production)
-      shell: docker exec mail-app-nginx nginx -s reload
+    - name: Start nginx container after SSL setup (Production)
+      shell: docker start mail-app-nginx
       when: env_type == 'production' and not prod_ssl_cert.stat.exists
       ignore_errors: true
       tags: [deploy, ssl]
