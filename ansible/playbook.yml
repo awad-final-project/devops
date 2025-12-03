@@ -337,6 +337,29 @@
       when: github_user is defined and github_token is defined
       tags: deploy
 
+    - name: Clean up Docker to free disk space
+      shell: |
+        # Remove stopped containers
+        docker container prune -f
+        # Remove unused images (not just dangling)
+        docker image prune -a -f
+        # Remove unused volumes
+        docker volume prune -f
+        # Remove build cache
+        docker builder prune -a -f
+      ignore_errors: true
+      tags: deploy
+
+    - name: Check disk space after cleanup
+      shell: df -h /
+      register: disk_space
+      tags: deploy
+
+    - name: Display disk space
+      debug:
+        var: disk_space.stdout_lines
+      tags: deploy
+
     - name: Pull Docker images
       shell: |
         {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
