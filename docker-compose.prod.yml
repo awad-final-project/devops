@@ -61,7 +61,7 @@ services:
     restart: unless-stopped
     volumes:
       - ./config/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt/live/mail.nguyenanhhao.site:/etc/nginx/ssl:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
       - /var/www/certbot:/var/www/certbot:ro
     ports:
       - "80:80"
