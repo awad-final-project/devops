@@ -336,16 +336,35 @@
       when: github_user is defined and github_token is defined
       tags: deploy
 
-    - name: Clean up Docker to free disk space
+    - name: Check disk space before cleanup
+      shell: df -h /
+      register: disk_space_before
+      tags: deploy
+
+    - name: Display disk space before cleanup
+      debug:
+        msg: "Disk space before cleanup: {{ disk_space_before.stdout_lines }}"
+      tags: deploy
+
+    - name: Stop old containers to free resources
+      shell: |
+        # Stop all exited containers
+        docker ps -aq -f status=exited | xargs -r docker rm
+      ignore_errors: true
+      tags: deploy
+
+    - name: Clean up Docker to free disk space (aggressive)
       shell: |
         # Remove stopped containers
         docker container prune -f
-        # Remove unused images (not just dangling)
-        docker image prune -a -f
+        # Remove ALL unused images (not just dangling)
+        docker image prune -a -f --filter "until=24h"
         # Remove unused volumes
         docker volume prune -f
-        # Remove build cache
+        # Remove ALL build cache
         docker builder prune -a -f
+        # Remove unused networks
+        docker network prune -f
       ignore_errors: true
       tags: deploy
 
@@ -354,15 +373,25 @@
       register: disk_space
       tags: deploy
 
-    - name: Display disk space
+    - name: Display disk space after cleanup
       debug:
-        var: disk_space.stdout_lines
+        msg: "Disk space after cleanup: {{ disk_space.stdout_lines }}"
+      tags: deploy
+
+    - name: Fail if disk space is critically low
+      fail:
+        msg: "Critical: Disk space is below 2GB. Please free up space manually."
+      when: "disk_space.stdout | regex_search('(\\d+)%', '\\1') | first | int > 95"
       tags: deploy
 
     - name: Pull Docker images
       shell: |
-        {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
+        {% if (env_type | default('production')) == 'production' %}
+          {% if (use_local_mongodb | default(false) | bool) %}
         docker compose --profile local-db -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
+          {% else %}
+        docker compose -f {{ devops_dir }}/{{ compose_file | default('docker-compose.prod.yml') }} pull
+          {% endif %}
         {% else %}
         docker compose -f {{ devops_dir }}/docker-compose.{{ app_name }}.yml pull
         {% endif %}
@@ -373,10 +402,14 @@
 
     - name: Deploy application with Docker Compose
       shell: |
-        {% if (env_type | default('production')) == 'production' and (use_local_mongodb | default(true)) %}
-        docker compose --profile local-db -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build
+        {% if (env_type | default('production')) == 'production' %}
+          {% if (use_local_mongodb | default(false) | bool) %}
+        docker compose --profile local-db -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build --remove-orphans
+          {% else %}
+        docker compose -f {{ compose_file | default('docker-compose.prod.yml') }} up -d --build --remove-orphans
+          {% endif %}
         {% else %}
-        docker compose -p {{ app_name }} -f docker-compose.{{ app_name }}.yml up -d --build
+        docker compose -p {{ app_name }} -f docker-compose.{{ app_name }}.yml up -d --build --remove-orphans
         {% endif %}
       args:
         chdir: "{{ devops_dir }}"
