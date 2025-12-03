@@ -27,15 +27,15 @@ services:
     ports:
       - "27017:27017"  # Accessible for MongoDB Compass when using local DB
 
-  backend-prod:
+  backend:
     image: ghcr.io/awad-final-project/backend:latest
-    container_name: mail-app-backend-prod
+    container_name: mail-app-backend
     restart: unless-stopped
     env_file:
-      - /opt/prod/backend/.env
+      - /opt/backend/.env
     environment:
       # Note: env_file variables are loaded first, then these override them
-      # MONGO_URI, JWT_SECRET, etc. are read from /opt/prod/backend/.env
+      # MONGO_URI, JWT_SECRET, etc. are read from /opt/backend/.env
       # Only explicitly set variables that need different values here
       - PORT=3000
       - NODE_ENV=production
@@ -46,23 +46,36 @@ services:
     networks:
       - app-network
 
-  frontend-prod:
+  frontend:
     image: ghcr.io/awad-final-project/frontend:latest
-    container_name: mail-app-frontend-prod
+    container_name: mail-app-frontend
     restart: unless-stopped
     depends_on:
-      - backend-prod
+      - backend
     networks:
       - app-network
 
-  # NOTE: Production does NOT have its own nginx
-  # It uses the shared nginx from dev environment (mail-app-nginx)
-  # Nginx config will handle routing to prod containers via domain name
+  nginx:
+    image: nginx:alpine
+    container_name: mail-app-nginx
+    restart: unless-stopped
+    volumes:
+      - /opt/devops/nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/mail.nguyenanhhao.site:/etc/nginx/ssl:ro
+      - /var/www/certbot:/var/www/certbot:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-network
 
 volumes:
   mongo-data:
 
 networks:
   app-network:
-    external: true
     name: mail-app-network
+    driver: bridge
