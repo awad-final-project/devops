@@ -68,6 +68,10 @@
         append: yes
       tags: setup
 
+    - name: Reset SSH connection to allow user changes to affect ansible user
+      meta: reset_connection
+      tags: setup
+
     # Firewall Configuration
     - name: Configure UFW firewall
       ufw:
@@ -201,11 +205,12 @@
       tags: [setup, config]
 
     # Docker Login (Moved up to allow image checking)
-    - name: Log in to GitHub Container Registry (root)
+    - name: Log in to GitHub Container Registry
       docker_login:
         registry: ghcr.io
         username: "{{ github_user }}"
         password: "{{ github_token }}"
+      become: false
       when: github_user is defined and github_token is defined
       tags: [setup, deploy]
 
@@ -318,21 +323,12 @@
         name: mail-app-network
       tags: deploy
 
-    - name: Log in to GitHub Container Registry (root)
+    - name: Log in to GitHub Container Registry
       docker_login:
         registry: ghcr.io
         username: "{{ github_user }}"
         password: "{{ github_token }}"
-      when: github_user is defined and github_token is defined
-      tags: deploy
-
-    - name: Log in to GitHub Container Registry (user)
-      docker_login:
-        registry: ghcr.io
-        username: "{{ github_user }}"
-        password: "{{ github_token }}"
-      become: true
-      become_user: "{{ ansible_user }}"
+      become: false
       when: github_user is defined and github_token is defined
       tags: deploy
 
@@ -378,10 +374,15 @@
         msg: "Disk space after cleanup: {{ disk_space.stdout_lines }}"
       tags: deploy
 
+    - name: Extract disk usage percentage
+      set_fact:
+        disk_usage: "{{ disk_space.stdout | regex_search('(\\d+)%') | regex_replace('%', '') | int }}"
+      tags: deploy
+
     - name: Fail if disk space is critically low
       fail:
-        msg: "Critical: Disk space is below 2GB. Please free up space manually."
-      when: "disk_space.stdout | regex_search('(\\d+)%', '\\1') | first | int > 95"
+        msg: "Critical: Disk space is {{ disk_usage }}% full. Please free up space manually."
+      when: disk_usage | int > 95
       tags: deploy
 
     - name: Pull Docker images
