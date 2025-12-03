@@ -265,11 +265,11 @@
       register: ssl_cert
       tags: ssl
 
-    # Main Domain SSL (Standalone)
+    # Main Domain SSL (Standalone) - For dev environment main instance
     - name: Stop nginx container for SSL setup (Main Domain)
       shell: docker stop {{ app_name }}-nginx
       ignore_errors: true
-      when: app_name == 'dev' and not ssl_cert.stat.exists
+      when: env_type == 'development' and app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Obtain SSL certificate (Main Domain - Standalone)
@@ -279,10 +279,21 @@
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
-      when: app_name == 'dev' and not ssl_cert.stat.exists
+      when: env_type == 'development' and app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
-    # Preview Domain SSL (Webroot)
+    # Production SSL (Standalone)
+    - name: Obtain SSL certificate (Production - Standalone)
+      shell: |
+        certbot certonly --standalone \
+          -d {{ domain_name }} \
+          --email {{ ssl_email }} \
+          --agree-tos \
+          --non-interactive
+      when: env_type == 'production' and not ssl_cert.stat.exists
+      tags: ssl
+
+    # Preview Domain SSL (Webroot) - Only for dev environment with preview branches
     - name: Obtain SSL certificate (Preview Domain - Webroot)
       shell: |
         certbot certonly --webroot \
@@ -291,7 +302,7 @@
           --email {{ ssl_email }} \
           --agree-tos \
           --non-interactive
-      when: app_name != 'dev' and not ssl_cert.stat.exists
+      when: env_type == 'development' and app_name != 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
     - name: Generate Nginx Config for Preview
@@ -303,12 +314,12 @@
         mode: '0644'
         owner: "{{ ansible_user }}"
         group: "{{ ansible_user }}"
-      when: app_name != 'dev'
+      when: env_type == 'development' and app_name != 'dev'
       tags: [config, ssl]
 
     - name: Force Reload Nginx (to pick up new certs/configs)
       shell: docker exec dev-nginx nginx -s reload
-      when: app_name != 'dev'
+      when: env_type == 'development' and app_name != 'dev'
       ignore_errors: true
       tags: [config, ssl, deploy]
 
