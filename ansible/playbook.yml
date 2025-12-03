@@ -282,17 +282,6 @@
       when: env_type == 'development' and app_name == 'dev' and not ssl_cert.stat.exists
       tags: ssl
 
-    # Production SSL (Standalone)
-    - name: Obtain SSL certificate (Production - Standalone)
-      shell: |
-        certbot certonly --standalone \
-          -d {{ domain_name }} \
-          --email {{ ssl_email }} \
-          --agree-tos \
-          --non-interactive
-      when: env_type == 'production' and not ssl_cert.stat.exists
-      tags: ssl
-
     # Preview Domain SSL (Webroot) - Only for dev environment with preview branches
     - name: Obtain SSL certificate (Preview Domain - Webroot)
       shell: |
@@ -324,10 +313,9 @@
       tags: [config, ssl, deploy]
 
     # Deploy Application
-    - name: Create external Docker network
+    - name: Create shared Docker network (if not exists)
       docker_network:
         name: mail-app-network
-      when: env_type == 'production'
       tags: deploy
 
     - name: Log in to GitHub Container Registry (root)
@@ -393,6 +381,31 @@
       args:
         chdir: "{{ devops_dir }}"
       tags: deploy
+
+    # Production SSL Setup (After Deploy) - Using Webroot method
+    - name: Check if SSL certificate exists (Production)
+      stat:
+        path: "/etc/letsencrypt/live/{{ domain_name }}/fullchain.pem"
+      register: prod_ssl_cert
+      when: env_type == 'production'
+      tags: [deploy, ssl]
+
+    - name: Obtain SSL certificate (Production - Webroot)
+      shell: |
+        certbot certonly --webroot \
+          -w /var/www/certbot \
+          -d {{ domain_name }} \
+          --email {{ ssl_email }} \
+          --agree-tos \
+          --non-interactive
+      when: env_type == 'production' and not prod_ssl_cert.stat.exists
+      tags: [deploy, ssl]
+
+    - name: Reload shared nginx after obtaining SSL (Production)
+      shell: docker exec mail-app-nginx nginx -s reload
+      when: env_type == 'production' and not prod_ssl_cert.stat.exists
+      ignore_errors: true
+      tags: [deploy, ssl]
 
     - name: Wait for services to be healthy
       pause:

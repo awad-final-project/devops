@@ -27,8 +27,10 @@ services:
     container_name: mail-app-nginx
     restart: unless-stopped
     volumes:
-      - /opt/devops/config/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
-      - /opt/devops/config/nginx/ssl:/etc/nginx/ssl:ro
+      - /opt/dev/devops/config/nginx/nginx.dev.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live:/etc/nginx/ssl:ro
+      - /var/www/certbot:/var/www/certbot:ro
+      - /opt/dev/devops/config/nginx/sites-enabled:/etc/nginx/sites-enabled:ro
     ports:
       - "80:80"
       - "443:443"
